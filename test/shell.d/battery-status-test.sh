@@ -44,6 +44,25 @@ grep -Fx $'rate\t10.8W' <<<"$shell_output" >/dev/null || fail "battery status re
 grep -Fx $'size\t56Wh' <<<"$shell_output" >/dev/null || fail "battery status reports full capacity"
 grep -Fx $'time\t2h 30m' <<<"$shell_output" >/dev/null || fail "battery status reports remaining time"
 
+# A zero cycle count means the EC reported nothing. Devices implementing only
+# the ACPI _BIF method leave the property at a literal 0, so the panel must not
+# render it as a battery with no wear history.
+mkdir -p "$tmp_dir/power-cycles/BAT0"
+printf '900000\n' >"$tmp_dir/power-cycles/BAT0/current_now"
+printf '12000000\n' >"$tmp_dir/power-cycles/BAT0/voltage_now"
+
+printf '0\n' >"$tmp_dir/power-cycles/BAT0/cycle_count"
+zero_cycles_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power-cycles" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+if grep -q $'^cycles\t' <<<"$zero_cycles_output"; then
+  fail "battery status omits a zero cycle count" "$zero_cycles_output"
+fi
+
+printf '145\n' >"$tmp_dir/power-cycles/BAT0/cycle_count"
+real_cycles_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power-cycles" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'cycles\t145' <<<"$real_cycles_output" >/dev/null || fail "battery status reports a real cycle count" "$real_cycles_output"
+
+pass "battery status omits a zero cycle count and reports a real one"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi

@@ -107,9 +107,13 @@ if [[ $shell_output == "true" ]]; then
   printf 'size\t%s\n' "${capacity}Wh"
   printf 'time\t%s\n' "$time_remaining"
 
+  # A zero cycle count means the EC reported nothing, not a battery with no
+  # wear. Devices implementing only the ACPI _BIF method leave the property at
+  # a literal 0, so printing it renders as "0 cycles" -- which reads as a
+  # pristine battery rather than as missing data.
   cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
 
-  [[ -n $cycles ]] && printf 'cycles\t%s\n' "$cycles"
+  [[ -n $cycles && $cycles != 0 ]] && printf 'cycles\t%s\n' "$cycles"
 
   if [[ -n $threshold_end ]]; then
     if [[ -n $threshold_start && $threshold_start != $threshold_end ]]; then
