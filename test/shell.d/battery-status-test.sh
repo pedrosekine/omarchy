@@ -63,6 +63,22 @@ grep -Fx $'cycles\t145' <<<"$real_cycles_output" >/dev/null || fail "battery sta
 
 pass "battery status omits a zero cycle count and reports a real one"
 
+# Uniwill/Tongfang boards stub the ACPI cycle count at 0 while tuxedo-drivers
+# exposes the real value from EC RAM, so the vendor attribute wins when it
+# holds a real count.
+printf '0\n' >"$tmp_dir/power-cycles/BAT0/cycle_count"
+printf '145\n' >"$tmp_dir/power-cycles/BAT0/raw_cycle_count"
+raw_cycles_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power-cycles" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'cycles\t145' <<<"$raw_cycles_output" >/dev/null || fail "battery status prefers a vendor cycle count over a stubbed zero" "$raw_cycles_output"
+
+# A vendor attribute that is itself zero must not mask a real ACPI count.
+printf '188\n' >"$tmp_dir/power-cycles/BAT0/cycle_count"
+printf '0\n' >"$tmp_dir/power-cycles/BAT0/raw_cycle_count"
+fallback_output=$(OMARCHY_POWER_SUPPLY_PATH="$tmp_dir/power-cycles" PATH="$tmp_dir/bin:$PATH" "$ROOT/bin/omarchy-battery-status" --shell)
+grep -Fx $'cycles\t188' <<<"$fallback_output" >/dev/null || fail "battery status falls back to the ACPI cycle count" "$fallback_output"
+
+pass "battery status prefers a vendor cycle count and falls back to ACPI"
+
 if matches=$(rg -n 'omarchy-battery-(capacity|remaining|remaining-time)' "$ROOT/bin" "$ROOT/test" "$ROOT/shell" "$ROOT/docs"); then
   fail "battery status owns capacity and remaining calculations" "$matches"
 fi

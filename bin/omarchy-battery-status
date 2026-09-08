@@ -111,7 +111,14 @@ if [[ $shell_output == "true" ]]; then
   # wear. Devices implementing only the ACPI _BIF method leave the property at
   # a literal 0, so printing it renders as "0 cycles" -- which reads as a
   # pristine battery rather than as missing data.
-  cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
+  #
+  # Some of those machines do expose a real count through a vendor driver:
+  # tuxedo-drivers reads it out of EC RAM and attaches raw_cycle_count to the
+  # ACPI battery on Uniwill/Tongfang boards -- TUXEDO's own laptops and the
+  # many rebadges of the same chassis. Prefer it when it holds a real value;
+  # the read costs nothing where the attribute is absent.
+  cycles=$(cat "$power_supply_path"/BAT*/raw_cycle_count 2>/dev/null | head -1)
+  [[ -z $cycles || $cycles == 0 ]] && cycles=$(cat "$power_supply_path"/BAT*/cycle_count 2>/dev/null | head -1)
 
   [[ -n $cycles && $cycles != 0 ]] && printf 'cycles\t%s\n' "$cycles"
 
